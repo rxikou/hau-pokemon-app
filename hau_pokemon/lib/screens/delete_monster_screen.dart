@@ -36,7 +36,7 @@ class _DeleteMonsterScreenState extends State<DeleteMonsterScreen> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load monsters.')),
+        SnackBar(content: Text(e is ApiException ? e.toString() : 'Failed to load monsters.')),
       );
     }
   }
@@ -85,7 +85,22 @@ class _DeleteMonsterScreenState extends State<DeleteMonsterScreen> {
     );
 
     // Call the API
-    final success = await _apiService.deleteMonster(monster.id);
+    bool success = false;
+    try {
+      success = await _apiService.deleteMonster(monster.id);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to delete monster.')),
+      );
+      return;
+    }
 
     if (!mounted) return;
 

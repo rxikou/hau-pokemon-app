@@ -5,6 +5,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../models/monster.dart';
+import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
 
 class AddMonsterScreen extends StatefulWidget {
@@ -15,6 +17,8 @@ class AddMonsterScreen extends StatefulWidget {
 }
 
 class _AddMonsterScreenState extends State<AddMonsterScreen> {
+  final ApiService _apiService = ApiService();
+
   // Form Controllers
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _typeController = TextEditingController();
@@ -29,6 +33,8 @@ class _AddMonsterScreenState extends State<AddMonsterScreen> {
   // Image State
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
+
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -98,7 +104,7 @@ class _AddMonsterScreenState extends State<AddMonsterScreen> {
   }
 
   // 4. Save Logic
-  void _saveMonster() {
+  Future<void> _saveMonster() async {
     if (_nameController.text.isEmpty ||
         _typeController.text.isEmpty ||
         _selectedLocation == null) {
@@ -109,10 +115,43 @@ class _AddMonsterScreenState extends State<AddMonsterScreen> {
       );
       return;
     }
-    // TODO: Send data and _imageFile to the ApiService
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Saving ${_nameController.text}...')),
+
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+
+    final radius = double.tryParse(_radiusController.text) ?? _currentRadius;
+    final monster = Monster(
+      name: _nameController.text.trim(),
+      type: _typeController.text.trim(),
+      lat: _selectedLocation!.latitude,
+      lng: _selectedLocation!.longitude,
+      radius: radius,
+      // NOTE: photo is currently local-only; not uploaded.
     );
+
+    try {
+      final ok = await _apiService.createMonster(monster);
+      if (!mounted) return;
+
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${monster.name} saved successfully!')),
+        );
+        Navigator.pop(context, true);
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to save monster.')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
@@ -257,11 +296,17 @@ class _AddMonsterScreenState extends State<AddMonsterScreen> {
 
             // Save Button
             ElevatedButton(
-              onPressed: _saveMonster,
-              child: const Text(
-                'Save Monster',
-                style: TextStyle(fontSize: 18),
-              ),
+              onPressed: _isSaving ? null : _saveMonster,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Save Monster',
+                      style: TextStyle(fontSize: 18),
+                    ),
             ),
             const SizedBox(height: 30),
           ],

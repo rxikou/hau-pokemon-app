@@ -24,14 +24,27 @@ class Monster {
       return double.tryParse(value.toString()) ?? 0.0;
     }
 
+    int? parseInt(dynamic value) {
+      if (value == null) return null;
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      return int.tryParse(value.toString());
+    }
+
     return Monster(
-      id: json['id'] as int? ?? json['monster_id'] as int?,
+      id: parseInt(json['id'] ?? json['monster_id']),
       name: (json['name'] ?? json['monster_name'] ?? '').toString(),
       type: (json['type'] ?? json['monster_type'] ?? '').toString(),
-      lat: parseDouble(json['lat'] ?? json['latitude']),
-      lng: parseDouble(json['lng'] ?? json['lon'] ?? json['longitude']),
-      radius: parseDouble(json['radius'] ?? json['spawn_radius']),
-      imageUrl: json['image_url']?.toString() ?? json['imageUrl']?.toString(),
+      lat: parseDouble(json['lat'] ?? json['latitude'] ?? json['spawn_latitude']),
+      lng: parseDouble(
+        json['lng'] ?? json['lon'] ?? json['longitude'] ?? json['spawn_longitude'],
+      ),
+      radius: parseDouble(
+        json['radius'] ?? json['spawn_radius'] ?? json['spawn_radius_meters'],
+      ),
+      imageUrl: json['picture_url']?.toString() ??
+          json['image_url']?.toString() ??
+          json['imageUrl']?.toString(),
     );
   }
 

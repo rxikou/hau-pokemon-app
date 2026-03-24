@@ -32,11 +32,11 @@ class _EditMonstersListScreenState extends State<EditMonstersListScreen> {
         _monsters = monsters;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load monsters.')),
+        SnackBar(content: Text(e is ApiException ? e.toString() : 'Failed to load monsters.')),
       );
     }
   }

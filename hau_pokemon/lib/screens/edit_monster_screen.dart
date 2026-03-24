@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../models/monster.dart';
+import '../services/api_service.dart';
 
 class EditMonsterScreen extends StatefulWidget {
   final Monster monster; // The monster we are editing
@@ -13,6 +14,8 @@ class EditMonsterScreen extends StatefulWidget {
 }
 
 class _EditMonsterScreenState extends State<EditMonsterScreen> {
+  final ApiService _apiService = ApiService();
+
   // Form Controllers
   late TextEditingController _nameController;
   late TextEditingController _typeController;
@@ -22,6 +25,8 @@ class _EditMonsterScreenState extends State<EditMonsterScreen> {
   GoogleMapController? _mapController;
   late LatLng _selectedLocation;
   late double _currentRadius;
+
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -44,7 +49,7 @@ class _EditMonsterScreenState extends State<EditMonsterScreen> {
   }
 
   // Update Logic
-  void _updateMonster() {
+  Future<void> _updateMonster() async {
     if (_nameController.text.isEmpty || _typeController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all fields.')),
@@ -52,11 +57,40 @@ class _EditMonsterScreenState extends State<EditMonsterScreen> {
       return;
     }
 
-    // TODO: Send updated data to ApiService via PUT/POST request
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Updating ${_nameController.text}...')),
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+
+    final radius = double.tryParse(_radiusController.text) ?? _currentRadius;
+    final updated = widget.monster.copyWith(
+      name: _nameController.text.trim(),
+      type: _typeController.text.trim(),
+      lat: _selectedLocation.latitude,
+      lng: _selectedLocation.longitude,
+      radius: radius,
     );
-    Navigator.pop(context); // Go back to the list after saving
+
+    try {
+      final ok = await _apiService.updateMonster(updated);
+      if (!mounted) return;
+      if (ok) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${updated.name} updated successfully!')),
+        );
+        Navigator.pop(context, true);
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update monster.')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
@@ -144,11 +178,17 @@ class _EditMonsterScreenState extends State<EditMonsterScreen> {
 
             // Update Button
             ElevatedButton(
-              onPressed: _updateMonster,
-              child: const Text(
-                'Update Monster',
-                style: TextStyle(fontSize: 18),
-              ),
+              onPressed: _isSaving ? null : _updateMonster,
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text(
+                      'Update Monster',
+                      style: TextStyle(fontSize: 18),
+                    ),
             ),
           ],
         ),
