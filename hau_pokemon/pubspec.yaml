@@ -40,6 +40,9 @@ dependencies:
   torch_light: ^1.1.0
   audioplayers: ^6.6.0
   shared_preferences: ^2.5.4
+  image_picker: ^1.0.7
+  google_fonts: ^6.3.0
+  crypto: ^3.0.6
 
 dev_dependencies:
   flutter_test:
@@ -62,6 +65,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/alarm.mp3
+    - assets/placeholder_monster.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

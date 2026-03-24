@@ -13,6 +13,12 @@ if (localPropertiesFile.exists()) {
     localPropertiesFile.inputStream().use { properties.load(it) }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+}
+
 android {
     namespace = "com.example.hau_pokemon"
     compileSdk = flutter.compileSdkVersion
@@ -21,10 +27,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
     defaultConfig {

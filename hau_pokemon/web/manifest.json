@@ -1,6 +1,6 @@
 {
-    "name": "hau_pokemon",
-    "short_name": "hau_pokemon",
+    "name": "HAUPokemon",
+    "short_name": "HAUPokemon",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
