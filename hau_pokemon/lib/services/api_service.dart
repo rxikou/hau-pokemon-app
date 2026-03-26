@@ -489,27 +489,70 @@ class ApiService {
 
   // 2. The Catch Logic (Sends GPS to Python backend)
   Future<Map<String, dynamic>> catchMonster(int playerId, double lat, double lng) async {
-    try {
-      final response = await http.post(
-        Uri.parse('${AppConstants.backendApiUrl}/catch'),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({
-          'player_id': playerId,
-          'latitude': lat,
-          'longitude': lng,
-        }),
-      );
+    final candidates = <String>['catch', 'catch.php'];
+    final tried = <String>[];
 
-      if (response.statusCode == 200) {
-        // Expected response from Python: {"success": True, "message": "...", "monster_name": "Shark"}
-        return json.decode(response.body); 
+    // Send common field aliases to tolerate backend differences.
+    final payload = {
+      'player_id': playerId,
+      'latitude': lat,
+      'longitude': lng,
+      'lat': lat,
+      'lng': lng,
+    };
+
+    for (final baseUrl in _candidateBaseUrls()) {
+      for (final path in candidates) {
+        final url = _endpointWithBase(baseUrl, path);
+        tried.add(url.toString());
+        try {
+          final response = await http
+              .post(
+                url,
+                headers: const {"Content-Type": "application/json", "Accept": "application/json"},
+                body: json.encode(payload),
+              )
+              .timeout(_timeout);
+
+          if (response.statusCode == 200) {
+            final decoded = _tryDecodeJson(response.body);
+            if (decoded is Map<String, dynamic>) {
+              return decoded;
+            }
+            return {
+              'success': false,
+              'message': 'Server returned non-JSON response. URL: ${url.toString()}',
+            };
+          }
+
+          if (_isMissingRouteStatus(response.statusCode)) {
+            continue;
+          }
+
+          final decoded = _tryDecodeJson(response.body);
+          final msg = _extractMessage(decoded) ??
+              'Server error. Status: ${response.statusCode}. URL: ${url.toString()}';
+          return {'success': false, 'message': msg};
+        } on TimeoutException {
+          // try next candidate
+          continue;
+        } on SocketException {
+          // try next candidate
+          continue;
+        } catch (e) {
+          developer.log('API Error (catchMonster): $e', name: 'ApiService');
+          return {
+            'success': false,
+            'message': 'API error while scanning: $e',
+          };
+        }
       }
-      return {"success": false, "message": "Server error. Status: ${response.statusCode}"};
-    } catch (e) {
-      developer.log('API Error (catchMonster): $e', name: 'ApiService');
-      // This is the error that triggers if Tailscale is disconnected
-      return {"success": false, "message": "Connection timeout. Is Tailscale ON?"}; 
     }
+
+    return {
+      'success': false,
+      'message': 'Catch endpoint not reachable. Tried: ${tried.join(' | ')}',
+    };
   }
 
   // 3. Fetch Top 10 Leaderboard
