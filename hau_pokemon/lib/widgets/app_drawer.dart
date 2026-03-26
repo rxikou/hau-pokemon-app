@@ -6,6 +6,7 @@ import '../screens/add_monster_screen.dart';
 import '../screens/admin_dashboard.dart';
 import '../screens/delete_monster_screen.dart';
 import '../screens/edit_monsters_list_screen.dart';
+import '../screens/inventory_screen.dart';
 import '../screens/leaderboard_screen.dart';
 import '../screens/map_screen.dart';
 import '../screens/players_screen.dart';
@@ -63,6 +64,15 @@ class AppDrawer extends StatelessWidget {
           final id = _resolvedPlayerId();
           if (id == null) return;
           _go(context, MapScreen(playerId: id));
+        },
+      ),
+      _DrawerEntry(
+        icon: Icons.backpack_rounded,
+        label: 'My Inventory',
+        onTap: () {
+          final id = _resolvedPlayerId();
+          if (id == null) return;
+          _go(context, InventoryScreen(playerId: id));
         },
       ),
       _DrawerEntry(

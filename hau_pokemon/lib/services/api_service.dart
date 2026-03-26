@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import '../models/caught_monster.dart';
 import '../utils/constants.dart';
 import '../models/monster.dart';
 
@@ -487,18 +488,25 @@ class ApiService {
     throw lastError ?? const ApiException('Failed to delete monster.');
   }
 
-  // 2. The Catch Logic (Sends GPS to Python backend)
-  Future<Map<String, dynamic>> catchMonster(int playerId, double lat, double lng) async {
-    final candidates = <String>['catch', 'catch.php'];
+  // 2. Catch a monster and persist to monster_catchestbl via PHP API
+  Future<Map<String, dynamic>> catchMonster(
+    int playerId,
+    double lat,
+    double lng, {
+    int? monsterId,
+  }) async {
+    final candidates = <String>['catch_monster.php', 'catch', 'catch.php'];
     final tried = <String>[];
+    String? lastConnectivityError;
 
-    // Send common field aliases to tolerate backend differences.
-    final payload = {
-      'player_id': playerId,
-      'latitude': lat,
-      'longitude': lng,
-      'lat': lat,
-      'lng': lng,
+    // Use form-encoded body because PHP endpoints read from $_POST.
+    final formBody = <String, String>{
+      'player_id': playerId.toString(),
+      'latitude': lat.toString(),
+      'longitude': lng.toString(),
+      'lat': lat.toString(),
+      'lng': lng.toString(),
+      if (monsterId != null) 'monster_id': monsterId.toString(),
     };
 
     for (final baseUrl in _candidateBaseUrls()) {
@@ -509,15 +517,18 @@ class ApiService {
           final response = await http
               .post(
                 url,
-                headers: const {"Content-Type": "application/json", "Accept": "application/json"},
-                body: json.encode(payload),
+                headers: const {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Accept': 'application/json',
+                },
+                body: formBody,
               )
               .timeout(_timeout);
 
           if (response.statusCode == 200) {
             final decoded = _tryDecodeJson(response.body);
-            if (decoded is Map<String, dynamic>) {
-              return decoded;
+            if (decoded is Map) {
+              return Map<String, dynamic>.from(decoded);
             }
             return {
               'success': false,
@@ -534,16 +545,18 @@ class ApiService {
               'Server error. Status: ${response.statusCode}. URL: ${url.toString()}';
           return {'success': false, 'message': msg};
         } on TimeoutException {
+          lastConnectivityError = 'Connection timeout. Is Tailscale ON?';
           // try next candidate
           continue;
         } on SocketException {
+          lastConnectivityError = 'Connection error. Is Tailscale ON?';
           // try next candidate
           continue;
         } catch (e) {
           developer.log('API Error (catchMonster): $e', name: 'ApiService');
           return {
             'success': false,
-            'message': 'API error while scanning: $e',
+            'message': 'API error while catching monster: $e',
           };
         }
       }
@@ -551,11 +564,118 @@ class ApiService {
 
     return {
       'success': false,
-      'message': 'Catch endpoint not reachable. Tried: ${tried.join(' | ')}',
+      'message': '${lastConnectivityError ?? 'Catch endpoint not reachable.'} Tried: ${tried.join(' | ')}',
     };
   }
 
-  // 3. Fetch Top 10 Leaderboard
+  // 3. Fetch caught monsters for a specific player
+  Future<List<CaughtMonster>> getPlayerInventory(int playerId) async {
+    final candidates = <String>['player_inventory.php', 'player_inventory'];
+    final tried = <String>[];
+    ApiException? lastError;
+
+    final formBody = <String, String>{
+      'player_id': playerId.toString(),
+    };
+
+    for (final baseUrl in _candidateBaseUrls()) {
+      for (final path in candidates) {
+        final url = _endpointWithBase(baseUrl, path);
+        tried.add(url.toString());
+
+        try {
+          final response = await http
+              .post(
+                url,
+                headers: const {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Accept': 'application/json',
+                },
+                body: formBody,
+              )
+              .timeout(_timeout);
+
+          if (response.statusCode == 200) {
+            final decoded = _tryDecodeJson(response.body);
+
+            if (decoded == null) {
+              throw ApiException(
+                'Server returned non-JSON response.',
+                url: url.toString(),
+                statusCode: response.statusCode,
+                body: response.body,
+              );
+            }
+
+            if (decoded is Map && decoded['success'] == false) {
+              throw ApiException(
+                _extractMessage(decoded) ?? 'Failed to load inventory.',
+                url: url.toString(),
+                statusCode: response.statusCode,
+                body: response.body,
+              );
+            }
+
+            dynamic listLike;
+            if (decoded is Map) {
+              listLike = decoded['data'] ?? decoded['inventory'] ?? decoded['items'];
+            } else {
+              listLike = decoded;
+            }
+
+            if (listLike is List) {
+              return listLike
+                  .whereType<Map>()
+                  .map((e) => CaughtMonster.fromJson(Map<String, dynamic>.from(e)))
+                  .toList();
+            }
+
+            throw ApiException(
+              'Invalid inventory response format.',
+              url: url.toString(),
+              statusCode: response.statusCode,
+              body: response.body,
+            );
+          }
+
+          if (_isMissingRouteStatus(response.statusCode)) {
+            lastError = ApiException(
+              'Endpoint not found.',
+              url: url.toString(),
+              statusCode: response.statusCode,
+              body: response.body,
+            );
+            continue;
+          }
+
+          final decoded = _tryDecodeJson(response.body);
+          throw ApiException(
+            _extractMessage(decoded) ?? 'Failed to load inventory.',
+            url: url.toString(),
+            statusCode: response.statusCode,
+            body: response.body,
+          );
+        } on TimeoutException {
+          lastError = ApiException('Connection timeout. Is Tailscale ON?', url: url.toString());
+        } on SocketException {
+          lastError = ApiException('Connection error. Is Tailscale ON?', url: url.toString());
+        } on ApiException catch (e) {
+          lastError = e;
+        } catch (e) {
+          developer.log('API Error (getPlayerInventory): $e', name: 'ApiService');
+          lastError = ApiException('API error while loading inventory.', url: url.toString());
+        }
+      }
+    }
+
+    if (lastError != null && _isMissingRouteStatus(lastError.statusCode ?? 0)) {
+      throw ApiException('Inventory endpoint not found. Tried: ${tried.join(' | ')}');
+    }
+
+    throw lastError ?? const ApiException('Failed to load inventory.');
+  }
+
+  // 4. Fetch Top 10 Leaderboard
   Future<List<dynamic>> getLeaderboard() async {
     try {
       final response = await http.get(Uri.parse('${AppConstants.backendApiUrl}/leaderboard'));

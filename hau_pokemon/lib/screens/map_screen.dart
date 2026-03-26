@@ -26,6 +26,29 @@ class MapScreenState extends State<MapScreen> {
   bool _isLoadingMonsters = true;
   List<Monster> _monsters = const [];
 
+  Future<void> _catchSelectedMonster({
+    required Monster selectedMonster,
+    required Position playerPosition,
+  }) async {
+    _showSnackBar('Catching ${selectedMonster.name}...');
+
+    final result = await _apiService.catchMonster(
+      widget.playerId,
+      playerPosition.latitude,
+      playerPosition.longitude,
+      monsterId: selectedMonster.id,
+    );
+
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      await _triggerHardwareAlert();
+      _showSuccessDialog((result['monster_name'] ?? selectedMonster.name).toString());
+    } else {
+      _showSnackBar((result['message'] ?? 'Failed to catch monster.').toString());
+    }
+  }
+
   Future<void> _showDetectedMonstersDialog({
     required Position playerPosition,
     required List<({Monster monster, double distanceMeters})> detected,
@@ -154,10 +177,13 @@ class MapScreenState extends State<MapScreen> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                  onPressed: () {
+                  onPressed: () async {
+                    final chosen = selected.monster;
                     Navigator.of(context).pop();
-                    _triggerHardwareAlert();
-                    _showSuccessDialog(selected.monster.name);
+                    await _catchSelectedMonster(
+                      selectedMonster: chosen,
+                      playerPosition: playerPosition,
+                    );
                   },
                   child: const Text('Catch', style: TextStyle(color: Colors.white)),
                 ),

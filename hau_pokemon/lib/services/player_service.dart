@@ -1,14 +1,131 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/player.dart';
+import '../utils/constants.dart';
 import 'player_session.dart';
 
 class PlayerService {
   static const _playersKey = 'players_v1';
   static const _currentPlayerIdKey = 'current_player_id_v1';
+  static const Duration _timeout = Duration(seconds: 12);
+
+  static String _stripTrailingSlashes(String value) => value.replaceAll(RegExp(r'/+$'), '');
+
+  static String _stripLeadingSlashes(String value) => value.replaceAll(RegExp(r'^/+'), '');
+
+  static List<String> _candidateBaseUrls() {
+    final base = _stripTrailingSlashes(AppConstants.backendApiUrl);
+    final bases = <String>[base];
+    if (base.toLowerCase().endsWith('/api')) {
+      bases.add(base.substring(0, base.length - 4));
+    }
+    final seen = <String>{};
+    return bases.where((b) => seen.add(b)).toList();
+  }
+
+  static Uri _endpointWithBase(String baseUrl, String path) {
+    final b = _stripTrailingSlashes(baseUrl);
+    final p = _stripLeadingSlashes(path);
+    return Uri.parse('$b/$p');
+  }
+
+  static int _parseInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static String? _extractMessage(dynamic decoded) {
+    if (decoded is Map) {
+      final msg = decoded['message'] ?? decoded['error'] ?? decoded['detail'];
+      if (msg != null) return msg.toString();
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>> _postFormToCandidates({
+    required List<String> paths,
+    required Map<String, String> body,
+  }) async {
+    String? connectivityError;
+    final tried = <String>[];
+
+    for (final baseUrl in _candidateBaseUrls()) {
+      for (final path in paths) {
+        final url = _endpointWithBase(baseUrl, path);
+        tried.add(url.toString());
+        try {
+          final response = await http
+              .post(
+                url,
+                headers: const {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'Accept': 'application/json',
+                },
+                body: body,
+              )
+              .timeout(_timeout);
+
+          dynamic decoded;
+          try {
+            decoded = json.decode(response.body);
+          } catch (_) {
+            decoded = null;
+          }
+
+          if (response.statusCode == 200) {
+            if (decoded is Map) {
+              return Map<String, dynamic>.from(decoded);
+            }
+            throw Exception('Server returned invalid response format.');
+          }
+
+          if (response.statusCode == 404 || response.statusCode == 405) {
+            continue;
+          }
+
+          throw Exception(
+            _extractMessage(decoded) ?? 'Server error. Status: ${response.statusCode}',
+          );
+        } on SocketException {
+          connectivityError = 'Connection error. Is Tailscale ON?';
+          continue;
+        } on TimeoutException {
+          connectivityError = 'Connection timeout. Is Tailscale ON?';
+          continue;
+        } on http.ClientException {
+          connectivityError = 'Connection error. Is Tailscale ON?';
+          continue;
+        }
+      }
+    }
+
+    throw Exception(
+      '${connectivityError ?? 'Auth endpoint not found.'} Tried: ${tried.join(' | ')}',
+    );
+  }
+
+  Future<void> _upsertLocalPlayer(Player player) async {
+    final players = await getPlayers();
+    // Keep a single local record per user identity to avoid stale duplicates
+    // causing fallback login to compare against old password hashes.
+    final next = players
+        .where((p) => p.id != player.id && p.username.toLowerCase() != player.username.toLowerCase())
+        .toList();
+    final index = next.indexWhere((p) => p.id == player.id);
+    if (index >= 0) {
+      next[index] = player;
+    } else {
+      next.add(player);
+    }
+    await _savePlayers(next);
+  }
 
   String hashPassword(String password) {
     final bytes = utf8.encode(password);
@@ -50,6 +167,44 @@ class PlayerService {
       throw Exception('Password must be at least 4 characters.');
     }
 
+    try {
+      final data = await _postFormToCandidates(
+        paths: const ['register_player.php', 'register_player'],
+        body: {
+          'player_name': normalized,
+          'username': normalized,
+          'password': password,
+        },
+      );
+
+      if (data['success'] == false) {
+        throw Exception(_extractMessage(data) ?? 'Registration failed.');
+      }
+
+      final player = Player(
+        id: _parseInt(data['player_id']),
+        username: normalized,
+        passwordHash: hashPassword(password),
+      );
+
+      if (player.id <= 0) {
+        throw Exception('Registration succeeded but player_id is missing.');
+      }
+
+      await _upsertLocalPlayer(player);
+      await setCurrentPlayerId(player.id);
+      return player;
+    } catch (e) {
+      final message = e.toString().replaceFirst('Exception: ', '').toLowerCase();
+      final canFallback =
+          message.contains('endpoint not found') ||
+          message.contains('connection error') ||
+          message.contains('connection timeout') ||
+          message.contains('tried:');
+
+      if (!canFallback) rethrow;
+    }
+
     final players = await getPlayers();
     final exists = players.any((p) => p.username.toLowerCase() == normalized.toLowerCase());
     if (exists) {
@@ -70,6 +225,52 @@ class PlayerService {
 
   Future<Player> login({required String username, required String password}) async {
     final normalized = username.trim();
+    if (normalized.isEmpty || password.isEmpty) {
+      throw Exception('Username and password are required.');
+    }
+
+    try {
+      final data = await _postFormToCandidates(
+        paths: const ['login_player.php', 'login_player'],
+        body: {
+          'username': normalized,
+          'password': password,
+        },
+      );
+
+      if (data['success'] == false) {
+        throw Exception(_extractMessage(data) ?? 'Login failed.');
+      }
+
+      final id = _parseInt(data['player_id']);
+      if (id <= 0) {
+        throw Exception('Login succeeded but player_id is missing.');
+      }
+
+      final displayName =
+          (data['username'] ?? data['player_name'] ?? normalized).toString().trim();
+
+      final player = Player(
+        id: id,
+        username: displayName.isEmpty ? normalized : displayName,
+        // Cache hash locally so fallback login still works when API is unreachable.
+        passwordHash: hashPassword(password),
+      );
+
+      await _upsertLocalPlayer(player);
+      await setCurrentPlayerId(player.id);
+      return player;
+    } catch (e) {
+      final message = e.toString().replaceFirst('Exception: ', '').toLowerCase();
+      final canFallback =
+          message.contains('endpoint not found') ||
+          message.contains('connection error') ||
+          message.contains('connection timeout') ||
+          message.contains('tried:');
+
+      if (!canFallback) rethrow;
+    }
+
     final players = await getPlayers();
 
     final hash = hashPassword(password);
@@ -78,7 +279,10 @@ class PlayerService {
       throw Exception('Account not found.');
     }
 
-    final player = match.first;
+    final player = match.firstWhere(
+      (p) => p.passwordHash == hash,
+      orElse: () => match.first,
+    );
     if (player.passwordHash != hash) {
       throw Exception('Incorrect password.');
     }
