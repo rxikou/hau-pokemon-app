@@ -50,8 +50,8 @@ class MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixi
         (result['monster_name'] ?? selectedMonster.name).toString(),
         locationName: (result['location_name'] ?? '').toString(),
       );
-      // Run hardware effects in the background so success feedback is instant.
-      unawaited(_triggerHardwareAlert());
+      // Keep catch feedback as alarm sound only (no torch flash).
+      unawaited(_playCatchAlarmOnly());
     } else {
       _showSnackBar((result['message'] ?? 'Failed to catch monster.').toString());
     }
@@ -322,6 +322,8 @@ class MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixi
       }
 
       if (detected.isNotEmpty) {
+        // Requirement: when monster is detected, trigger alarm + 5-second torch flash.
+        unawaited(_triggerDetectionAlert());
         // Keep radar visible briefly so scanning feels intentional.
         await Future.delayed(const Duration(milliseconds: 1500));
         await _showDetectedMonstersDialog(
@@ -396,9 +398,17 @@ class MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixi
   }
 
   // 3. Hardware Triggers (Rubric Requirement)
-  Future<void> _triggerHardwareAlert() async {
+  Future<void> _playCatchAlarmOnly() async {
     try {
-      // Trigger sound and torch in parallel for faster feedback.
+      await _audioPlayer.play(AssetSource('alarm.mp3'));
+    } catch (e) {
+      debugPrint("Catch alarm error: $e");
+    }
+  }
+
+  Future<void> _triggerDetectionAlert() async {
+    try {
+      // Detection requirement: play alarm and flash torch for 5 seconds.
       final soundFuture = _audioPlayer.play(AssetSource('alarm.mp3'));
 
       final torchFuture = () async {
@@ -406,7 +416,7 @@ class MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixi
         if (!hasTorch) return;
 
         await TorchLight.enableTorch();
-        await Future.delayed(const Duration(milliseconds: 1200));
+        await Future.delayed(const Duration(seconds: 5));
         await TorchLight.disableTorch();
       }();
 
@@ -415,7 +425,7 @@ class MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixi
         torchFuture,
       ]);
     } catch (e) {
-      debugPrint("Hardware trigger error: $e");
+      debugPrint("Detection alert error: $e");
     }
   }
 
