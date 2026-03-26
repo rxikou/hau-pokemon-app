@@ -128,14 +128,6 @@ flutter analyze
 flutter test
 ```
 
-## Notes on Image Handling (`picture_url`)
-
-Recommended pattern:
-- Upload image first via backend endpoint (multipart/form-data)
-- Store stable image key/path in DB
-- Keep `picture_url` as computed/public URL if needed
-- Avoid storing raw image blobs in MySQL for this app use case
-
 ## Common Troubleshooting
 
 - API unreachable/timeouts:
@@ -149,11 +141,6 @@ Recommended pattern:
 
 - UI changes not reflecting:
 	- Do a full app restart (not only hot reload), especially for map/animation drawing changes
-
-## Security and Secrets
-
-- Do not commit production credentials, API keys, or private certificates
-- Keep environment-specific values out of source control when possible
 
 ## Current Status
 

@@ -66,10 +66,16 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           children: [
             RotationTransition(
               turns: _controller,
-              child: Icon(
-                Icons.catching_pokemon,
-                size: 92,
-                color: scheme.primary,
+              child: Container(
+                width: 92,
+                height: 92,
+                decoration: const BoxDecoration(shape: BoxShape.circle),
+                child: ClipOval(
+                  child: Image.asset(
+                    'assets/shawn_ketchum1.png',
+                    fit: BoxFit.cover,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 14),

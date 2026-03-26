@@ -156,9 +156,12 @@ class _DeleteMonsterScreenState extends State<DeleteMonsterScreen> {
                         // Placeholder for the monster image mentioned in your schema
                         leading: CircleAvatar(
                           backgroundColor: scheme.surfaceContainerHighest,
-                          child: Icon(
-                            Icons.catching_pokemon,
-                            color: scheme.primary,
+                          child: Transform.rotate(
+                            angle: 3.141592653589793,
+                            child: Icon(
+                              Icons.catching_pokemon,
+                              color: scheme.primary,
+                            ),
                           ),
                         ),
                         title: Text(monster.name,

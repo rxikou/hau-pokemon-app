@@ -40,7 +40,7 @@ class AboutUsScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  const _PokeballBadge(size: 72),
+                  const _AppLogoBadge(size: 72),
                   const SizedBox(height: 12),
                   Text(
                     'HAUPokemon Engine',
@@ -120,10 +120,10 @@ class AboutUsScreen extends StatelessWidget {
   }
 }
 
-class _PokeballBadge extends StatelessWidget {
+class _AppLogoBadge extends StatelessWidget {
   final double size;
 
-  const _PokeballBadge({required this.size});
+  const _AppLogoBadge({required this.size});
 
   @override
   Widget build(BuildContext context) {
@@ -132,58 +132,11 @@ class _PokeballBadge extends StatelessWidget {
       height: size,
       child: ClipOval(
         clipBehavior: Clip.hardEdge,
-        child: CustomPaint(
-          painter: _PokeballBadgePainter(),
+        child: Image.asset(
+          'assets/shawn_ketchum1.png',
+          fit: BoxFit.cover,
         ),
       ),
     );
   }
-}
-
-class _PokeballBadgePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    const outlineColor = Colors.black;
-    const topColor = Color(0xFFE53935);
-
-    final strokeWidth = size.width * 0.06;
-    final inset = (strokeWidth / 2) + 1;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width / 2) - inset;
-    final ballRect = Rect.fromCircle(center: center, radius: radius);
-    final ballPath = Path()..addOval(ballRect);
-
-    final borderPaint = Paint()
-      ..color = outlineColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-
-    final redPaint = Paint()..color = topColor;
-    final whitePaint = Paint()..color = Colors.white;
-
-    canvas.save();
-    canvas.clipPath(ballPath);
-    canvas.drawCircle(center, radius, whitePaint);
-    canvas.drawRect(
-      Rect.fromLTWH(ballRect.left, ballRect.top, ballRect.width, ballRect.height / 2),
-      redPaint,
-    );
-
-    final bandHeight = size.height * 0.12;
-    final bandRect = Rect.fromCenter(
-      center: center,
-      width: radius * 2,
-      height: bandHeight,
-    );
-    canvas.drawRect(bandRect, Paint()..color = outlineColor);
-
-    canvas.drawCircle(center, size.width * 0.16, Paint()..color = outlineColor);
-    canvas.drawCircle(center, size.width * 0.09, Paint()..color = Colors.white);
-    canvas.restore();
-
-    canvas.drawCircle(center, radius - borderPaint.strokeWidth / 2, borderPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PokeballBadgePainter oldDelegate) => false;
 }

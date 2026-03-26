@@ -127,11 +127,7 @@ class _PlayersScreenState extends State<PlayersScreen> {
                       child: Card(
                         child: ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: scheme.surfaceContainerHighest,
-                            child: Icon(
-                              Icons.person_rounded,
-                              color: scheme.onSurfaceVariant,
-                            ),
+                            backgroundImage: const AssetImage('assets/shawn_ketchum1.png'),
                           ),
                           title: Text(
                             p.username,

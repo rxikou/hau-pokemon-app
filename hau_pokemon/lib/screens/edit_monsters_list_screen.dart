@@ -95,9 +95,12 @@ class _EditMonstersListScreenState extends State<EditMonstersListScreen> {
                         ),
                         leading: CircleAvatar(
                           backgroundColor: scheme.surfaceContainerHighest,
-                          child: Icon(
-                            Icons.catching_pokemon,
-                            color: scheme.primary,
+                          child: Transform.rotate(
+                            angle: 3.141592653589793,
+                            child: Icon(
+                              Icons.catching_pokemon,
+                              color: scheme.primary,
+                            ),
                           ),
                         ),
                         title: Text(

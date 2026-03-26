@@ -87,7 +87,7 @@ class _LoginScreenState extends State<LoginScreen>
                     child: Center(
                       child: RotationTransition(
                         turns: _spinTurns,
-                        child: const _PokeballLogo(size: 170),
+                        child: const _AppLogoImage(size: 170),
                       ),
                     ),
                   ),
@@ -165,10 +165,10 @@ class _LoginScreenState extends State<LoginScreen>
   }
 }
 
-class _PokeballLogo extends StatelessWidget {
+class _AppLogoImage extends StatelessWidget {
   final double size;
 
-  const _PokeballLogo({
+  const _AppLogoImage({
     required this.size,
   });
 
@@ -179,79 +179,11 @@ class _PokeballLogo extends StatelessWidget {
       height: size,
       child: ClipOval(
         clipBehavior: Clip.hardEdge,
-        child: CustomPaint(
-          painter: _PokeballPainter(),
+        child: Image.asset(
+          'assets/shawn_ketchum1.png',
+          fit: BoxFit.cover,
         ),
       ),
     );
-  }
-}
-
-class _PokeballPainter extends CustomPainter {
-  const _PokeballPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const outlineColor = Colors.black;
-    const topColor = Color(0xFFE53935);
-
-    final strokeWidth = size.width * 0.06;
-    final inset = (strokeWidth / 2) + 1;
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width / 2) - inset;
-    final ballRect = Rect.fromCircle(center: center, radius: radius);
-    final ballPath = Path()..addOval(ballRect);
-
-    final borderPaint = Paint()
-      ..color = outlineColor
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = false
-      ..strokeWidth = strokeWidth;
-
-    final redPaint = Paint()
-      ..color = topColor
-      ..isAntiAlias = false;
-    final whitePaint = Paint()
-      ..color = Colors.white
-      ..isAntiAlias = false;
-
-    canvas.save();
-    canvas.clipPath(ballPath);
-    canvas.drawCircle(center, radius, whitePaint);
-    canvas.drawRect(
-      Rect.fromLTWH(ballRect.left, ballRect.top, ballRect.width, ballRect.height / 2),
-      redPaint,
-    );
-
-    final bandPaint = Paint()
-      ..color = outlineColor
-      ..isAntiAlias = false
-      ..style = PaintingStyle.fill;
-
-    final bandHeight = size.height * 0.12;
-    final bandRect = Rect.fromCenter(
-      center: center,
-      width: radius * 2,
-      height: bandHeight,
-    );
-    canvas.drawRect(bandRect, bandPaint);
-
-    final coreOuterPaint = Paint()
-      ..color = outlineColor
-      ..isAntiAlias = false;
-    final coreInnerPaint = Paint()
-      ..color = Colors.white
-      ..isAntiAlias = false;
-
-    canvas.drawCircle(center, size.width * 0.16, coreOuterPaint);
-    canvas.drawCircle(center, size.width * 0.09, coreInnerPaint);
-    canvas.restore();
-
-    canvas.drawCircle(center, radius - borderPaint.strokeWidth / 2, borderPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PokeballPainter oldDelegate) {
-    return false;
   }
 }

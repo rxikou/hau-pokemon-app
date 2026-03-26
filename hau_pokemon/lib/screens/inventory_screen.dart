@@ -99,9 +99,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     backgroundImage: hasNetworkImage ? NetworkImage(image) : null,
                     child: hasNetworkImage
                         ? null
-                        : Text(
-                            item.name.isNotEmpty ? item.name[0].toUpperCase() : '?',
-                            style: TextStyle(color: scheme.onSurfaceVariant),
+                        : Transform.rotate(
+                            angle: 3.141592653589793,
+                            child: Icon(
+                              Icons.catching_pokemon,
+                              color: scheme.primary,
+                            ),
                           ),
                   ),
                   title: Text(
