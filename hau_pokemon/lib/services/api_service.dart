@@ -494,6 +494,7 @@ class ApiService {
     double lat,
     double lng, {
     int? monsterId,
+    int? locationId,
   }) async {
     final candidates = <String>['catch_monster.php', 'catch', 'catch.php'];
     final tried = <String>[];
@@ -507,6 +508,7 @@ class ApiService {
       'lat': lat.toString(),
       'lng': lng.toString(),
       if (monsterId != null) 'monster_id': monsterId.toString(),
+      if (locationId != null) 'location_id': locationId.toString(),
     };
 
     for (final baseUrl in _candidateBaseUrls()) {
@@ -677,18 +679,85 @@ class ApiService {
 
   // 4. Fetch Top 10 Leaderboard
   Future<List<dynamic>> getLeaderboard() async {
-    try {
-      final response = await http.get(Uri.parse('${AppConstants.backendApiUrl}/leaderboard'));
-      
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        throw Exception('Failed to load leaderboard.');
+    final candidates = <String>['leaderboard.php', 'leaderboard'];
+    ApiException? lastError;
+
+    for (final baseUrl in _candidateBaseUrls()) {
+      for (final path in candidates) {
+        final url = _endpointWithBase(baseUrl, path);
+        try {
+          final response = await http.get(url).timeout(_timeout);
+
+          if (response.statusCode == 200) {
+            final decoded = _tryDecodeJson(response.body);
+            if (decoded == null) {
+              throw ApiException(
+                'Server returned non-JSON response.',
+                url: url.toString(),
+                statusCode: response.statusCode,
+                body: response.body,
+              );
+            }
+
+            if (decoded is Map && decoded['success'] == false) {
+              throw ApiException(
+                _extractMessage(decoded) ?? 'Failed to load leaderboard.',
+                url: url.toString(),
+                statusCode: response.statusCode,
+                body: response.body,
+              );
+            }
+
+            dynamic listLike;
+            if (decoded is Map) {
+              listLike = decoded['data'] ?? decoded['leaderboard'] ?? decoded['items'];
+            } else {
+              listLike = decoded;
+            }
+
+            if (listLike is List) {
+              return listLike;
+            }
+
+            throw ApiException(
+              'Invalid leaderboard response format.',
+              url: url.toString(),
+              statusCode: response.statusCode,
+              body: response.body,
+            );
+          }
+
+          if (_isMissingRouteStatus(response.statusCode)) {
+            lastError = ApiException(
+              'Endpoint not found.',
+              url: url.toString(),
+              statusCode: response.statusCode,
+              body: response.body,
+            );
+            continue;
+          }
+
+          final decoded = _tryDecodeJson(response.body);
+          throw ApiException(
+            _extractMessage(decoded) ?? 'Failed to load leaderboard.',
+            url: url.toString(),
+            statusCode: response.statusCode,
+            body: response.body,
+          );
+        } on TimeoutException {
+          lastError = ApiException('Connection timeout. Is Tailscale ON?', url: url.toString());
+        } on SocketException {
+          lastError = ApiException('Connection error. Is Tailscale ON?', url: url.toString());
+        } on ApiException catch (e) {
+          lastError = e;
+        } catch (e) {
+          developer.log('API Error (getLeaderboard): $e', name: 'ApiService');
+          lastError = ApiException('API error while loading leaderboard.', url: url.toString());
+        }
       }
-    } catch (e) {
-      developer.log('API Error (getLeaderboard): $e', name: 'ApiService');
-      return [];
     }
+
+    throw lastError ?? const ApiException('Failed to load leaderboard.');
   }
 }
 

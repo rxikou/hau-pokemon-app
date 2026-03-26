@@ -43,7 +43,10 @@ class MapScreenState extends State<MapScreen> {
 
     if (result['success'] == true) {
       await _triggerHardwareAlert();
-      _showSuccessDialog((result['monster_name'] ?? selectedMonster.name).toString());
+      _showSuccessDialog(
+        (result['monster_name'] ?? selectedMonster.name).toString(),
+        locationName: (result['location_name'] ?? '').toString(),
+      );
     } else {
       _showSnackBar((result['message'] ?? 'Failed to catch monster.').toString());
     }
@@ -333,7 +336,11 @@ class MapScreenState extends State<MapScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _showSuccessDialog(String monsterName) {
+  void _showSuccessDialog(String monsterName, {String? locationName}) {
+    final place = (locationName != null && locationName.trim().isNotEmpty)
+        ? ' at ${locationName.trim()}'
+        : '';
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -346,7 +353,10 @@ class MapScreenState extends State<MapScreen> {
             Text("Monster Caught!"),
           ],
         ),
-        content: Text("Incredible! You just caught a $monsterName!", style: const TextStyle(fontSize: 16)),
+        content: Text(
+          "Incredible! You just caught a $monsterName$place!",
+          style: const TextStyle(fontSize: 16),
+        ),
         actions: [
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),

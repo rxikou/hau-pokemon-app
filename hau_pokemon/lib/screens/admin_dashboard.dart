@@ -6,6 +6,8 @@ import 'map_screen.dart';
 import 'add_monster_screen.dart';
 import 'delete_monster_screen.dart';
 import 'edit_monsters_list_screen.dart';
+import '../services/player_service.dart';
+import '../services/player_session.dart';
 import '../widgets/app_drawer.dart';
 
 class AdminDashboard extends StatefulWidget {
@@ -18,6 +20,38 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class AdminDashboardState extends State<AdminDashboard> {
+  final PlayerService _playerService = PlayerService();
+  String _welcomeName = 'Hunter';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWelcomeName();
+  }
+
+  Future<void> _loadWelcomeName() async {
+    final fromSession = PlayerSession.currentPlayerName;
+    if (fromSession != null && fromSession.trim().isNotEmpty) {
+      if (!mounted) return;
+      setState(() => _welcomeName = fromSession.trim());
+      return;
+    }
+
+    final players = await _playerService.getPlayers();
+    String? resolved;
+    for (final p in players) {
+      if (p.id == widget.playerId) {
+        resolved = p.displayName;
+        break;
+      }
+    }
+
+    if (!mounted) return;
+    if (resolved != null && resolved.trim().isNotEmpty) {
+      setState(() => _welcomeName = resolved!.trim());
+    }
+  }
+
   List<Color> _dashboardTileColors(Color seed) {
     // Derive a stable, colorful palette from the theme seed (no global theme change).
     final base = HSLColor.fromColor(seed);
@@ -46,39 +80,47 @@ class AdminDashboardState extends State<AdminDashboard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Welcome, Hunter',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Welcome, $_welcomeName',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Choose what you want to do next.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(color: scheme.onSurfaceVariant),
+                      ),
+                    ],
                   ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Choose what you want to do next.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: scheme.onSurfaceVariant),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: scheme.outline.withValues(alpha: 26)),
                 ),
-                child: Text(
-                  'Player ID: ${widget.playerId}',
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelLarge
-                      ?.copyWith(fontWeight: FontWeight.w700),
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: scheme.outline.withValues(alpha: 26)),
+                  ),
+                  child: Text(
+                    'ID ${widget.playerId}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelSmall
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
-              ),
+              ],
             ),
             const SizedBox(height: 18),
             

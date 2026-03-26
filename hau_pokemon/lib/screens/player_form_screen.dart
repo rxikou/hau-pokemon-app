@@ -15,6 +15,7 @@ class PlayerFormScreen extends StatefulWidget {
 class _PlayerFormScreenState extends State<PlayerFormScreen> {
   final _service = PlayerService();
 
+  late final TextEditingController _nameController;
   late final TextEditingController _usernameController;
   final _passwordController = TextEditingController();
 
@@ -26,11 +27,13 @@ class _PlayerFormScreenState extends State<PlayerFormScreen> {
   @override
   void initState() {
     super.initState();
+    _nameController = TextEditingController(text: widget.player?.displayName ?? widget.player?.username ?? '');
     _usernameController = TextEditingController(text: widget.player?.username ?? '');
   }
 
   @override
   void dispose() {
+    _nameController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -44,11 +47,13 @@ class _PlayerFormScreenState extends State<PlayerFormScreen> {
       if (_isEdit) {
         await _service.updatePlayer(
           id: widget.player!.id,
+          name: _nameController.text,
           username: _usernameController.text,
           newPassword: _passwordController.text.trim().isEmpty ? null : _passwordController.text,
         );
       } else {
         await _service.createPlayer(
+          name: _nameController.text,
           username: _usernameController.text,
           password: _passwordController.text,
         );
@@ -82,6 +87,15 @@ class _PlayerFormScreenState extends State<PlayerFormScreen> {
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
+                      TextField(
+                        controller: _nameController,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          labelText: 'Name',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       TextField(
                         controller: _usernameController,
                         textInputAction: TextInputAction.next,

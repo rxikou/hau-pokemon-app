@@ -49,6 +49,13 @@ class PlayerService {
     return null;
   }
 
+  bool _isConnectivityFallbackMessage(String message) {
+    return message.contains('endpoint not found') ||
+        message.contains('connection error') ||
+        message.contains('connection timeout') ||
+        message.contains('tried:');
+  }
+
   Future<Map<String, dynamic>> _postFormToCandidates({
     required List<String> paths,
     required Map<String, String> body,
@@ -125,6 +132,10 @@ class PlayerService {
       next.add(player);
     }
     await _savePlayers(next);
+
+    if (PlayerSession.currentPlayerId == player.id) {
+      PlayerSession.currentPlayerName = player.displayName;
+    }
   }
 
   String hashPassword(String password) {
@@ -158,10 +169,18 @@ class PlayerService {
     return maxId + 1;
   }
 
-  Future<Player> register({required String username, required String password}) async {
+  Future<Player> register({
+    required String username,
+    required String password,
+    String? name,
+  }) async {
     final normalized = username.trim();
+    final normalizedName = (name ?? username).trim();
     if (normalized.isEmpty) {
       throw Exception('Username is required.');
+    }
+    if (normalizedName.isEmpty) {
+      throw Exception('Name is required.');
     }
     if (password.length < 4) {
       throw Exception('Password must be at least 4 characters.');
@@ -171,7 +190,7 @@ class PlayerService {
       final data = await _postFormToCandidates(
         paths: const ['register_player.php', 'register_player'],
         body: {
-          'player_name': normalized,
+          'player_name': normalizedName,
           'username': normalized,
           'password': password,
         },
@@ -183,7 +202,8 @@ class PlayerService {
 
       final player = Player(
         id: _parseInt(data['player_id']),
-        username: normalized,
+        name: (data['player_name'] ?? normalizedName).toString(),
+        username: (data['username'] ?? normalized).toString(),
         passwordHash: hashPassword(password),
       );
 
@@ -196,11 +216,7 @@ class PlayerService {
       return player;
     } catch (e) {
       final message = e.toString().replaceFirst('Exception: ', '').toLowerCase();
-      final canFallback =
-          message.contains('endpoint not found') ||
-          message.contains('connection error') ||
-          message.contains('connection timeout') ||
-          message.contains('tried:');
+      final canFallback = _isConnectivityFallbackMessage(message);
 
       if (!canFallback) rethrow;
     }
@@ -213,6 +229,7 @@ class PlayerService {
 
     final player = Player(
       id: await _nextId(players),
+      name: normalizedName,
       username: normalized,
       passwordHash: hashPassword(password),
     );
@@ -252,7 +269,8 @@ class PlayerService {
 
       final player = Player(
         id: id,
-        username: displayName.isEmpty ? normalized : displayName,
+        name: (data['player_name'] ?? data['name'] ?? displayName).toString(),
+        username: (data['username'] ?? normalized).toString(),
         // Cache hash locally so fallback login still works when API is unreachable.
         passwordHash: hashPassword(password),
       );
@@ -262,11 +280,7 @@ class PlayerService {
       return player;
     } catch (e) {
       final message = e.toString().replaceFirst('Exception: ', '').toLowerCase();
-      final canFallback =
-          message.contains('endpoint not found') ||
-          message.contains('connection error') ||
-          message.contains('connection timeout') ||
-          message.contains('tried:');
+      final canFallback = _isConnectivityFallbackMessage(message);
 
       if (!canFallback) rethrow;
     }
@@ -295,6 +309,7 @@ class PlayerService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_currentPlayerIdKey);
     PlayerSession.currentPlayerId = null;
+    PlayerSession.currentPlayerName = null;
   }
 
   Future<int?> getCurrentPlayerId() async {
@@ -306,23 +321,79 @@ class PlayerService {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_currentPlayerIdKey, id);
     PlayerSession.currentPlayerId = id;
+
+    final players = await getPlayers();
+    final current = players.where((p) => p.id == id).cast<Player?>().firstWhere(
+          (p) => p != null,
+          orElse: () => null,
+        );
+    PlayerSession.currentPlayerName = current?.displayName;
   }
 
-  Future<Player> createPlayer({required String username, required String password}) async {
-    return register(username: username, password: password);
+  Future<Player> createPlayer({
+    required String username,
+    required String password,
+    String? name,
+  }) async {
+    return register(username: username, password: password, name: name);
   }
 
   Future<Player> updatePlayer({
     required int id,
+    String? name,
     required String username,
     String? newPassword,
   }) async {
     final normalized = username.trim();
+    final normalizedName = (name ?? username).trim();
     if (normalized.isEmpty) {
       throw Exception('Username is required.');
     }
+    if (normalizedName.isEmpty) {
+      throw Exception('Name is required.');
+    }
 
     final players = await getPlayers();
+    final existing = players.where((p) => p.id == id).cast<Player?>().firstWhere(
+          (p) => p != null,
+          orElse: () => null,
+        );
+
+    try {
+      final body = <String, String>{
+        'player_id': id.toString(),
+        'player_name': normalizedName,
+        'username': normalized,
+      };
+      if (newPassword != null && newPassword.isNotEmpty) {
+        body['password'] = newPassword;
+      }
+
+      final data = await _postFormToCandidates(
+        paths: const ['update_player.php', 'update_player'],
+        body: body,
+      );
+
+      if (data['success'] == false) {
+        throw Exception(_extractMessage(data) ?? 'Failed to update account.');
+      }
+
+      final updated = Player(
+        id: _parseInt(data['player_id']) == 0 ? id : _parseInt(data['player_id']),
+        name: (data['player_name'] ?? normalizedName).toString(),
+        username: (data['username'] ?? normalized).toString(),
+        passwordHash: (newPassword != null && newPassword.isNotEmpty)
+            ? hashPassword(newPassword)
+            : (existing?.passwordHash ?? ''),
+      );
+
+      await _upsertLocalPlayer(updated);
+      return updated;
+    } catch (e) {
+      final message = e.toString().replaceFirst('Exception: ', '').toLowerCase();
+      final canFallback = _isConnectivityFallbackMessage(message);
+      if (!canFallback) rethrow;
+    }
 
     final duplicate = players.any(
       (p) => p.id != id && p.username.toLowerCase() == normalized.toLowerCase(),
@@ -336,16 +407,21 @@ class PlayerService {
       throw Exception('Player not found.');
     }
 
-    final existing = players[idx];
-    final updated = existing.copyWith(
+    final existingLocal = players[idx];
+    final updated = existingLocal.copyWith(
+      name: normalizedName,
       username: normalized,
       passwordHash: (newPassword != null && newPassword.isNotEmpty)
           ? hashPassword(newPassword)
-          : existing.passwordHash,
+          : existingLocal.passwordHash,
     );
 
     final next = [...players]..[idx] = updated;
     await _savePlayers(next);
+
+    if (PlayerSession.currentPlayerId == updated.id) {
+      PlayerSession.currentPlayerName = updated.displayName;
+    }
 
     return updated;
   }

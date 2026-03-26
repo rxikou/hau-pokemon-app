@@ -7,6 +7,7 @@ This folder is tracked in git so the team has one shared place for PHP API refer
 - `add_monster.php`
 - `update_monster.php`
 - `delete_monster.php`
+- `update_player.php`
 - any shared DB config examples (without real secrets)
 
 ## Notes
