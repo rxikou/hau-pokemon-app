@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'services/theme_controller.dart';
 import 'screens/splash_screen.dart';
 import 'theme/pokedex_theme.dart';
 
@@ -14,17 +15,29 @@ class HauPokemonApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'HAUPokemon',
-      theme: PokedexTheme.dark(),
-      builder: (context, child) {
-        return DecoratedBox(
-          decoration: const BoxDecoration(gradient: PokedexTheme.backgroundGradient),
-          child: child ?? const SizedBox.shrink(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: AppThemeController.instance.mode,
+      builder: (context, mode, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'HAUPokemon',
+          themeMode: mode,
+          theme: PokedexTheme.light(),
+          darkTheme: PokedexTheme.dark(),
+          builder: (context, child) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: isDark
+                    ? PokedexTheme.backgroundGradient
+                    : PokedexTheme.backgroundGradientLight,
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          home: home ?? const SplashScreen(),
         );
       },
-      home: home ?? const SplashScreen(),
     );
   }
 }

@@ -4,6 +4,7 @@ import '../models/player.dart';
 import '../services/player_service.dart';
 import '../services/player_session.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/trainer_silhouette_avatar.dart';
 import 'login_screen.dart';
 
 class AccountScreen extends StatefulWidget {
@@ -145,119 +146,132 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
       body: _loading
           ? Center(child: CircularProgressIndicator(color: scheme.primary))
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
+          : GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              behavior: HitTestBehavior.translucent,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      16,
+                      16,
+                      16 + MediaQuery.of(context).viewInsets.bottom,
+                    ),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: constraints.maxHeight - 32),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(18),
-                              color: scheme.primary.withValues(alpha: 18),
-                              border: Border.all(color: scheme.primary.withValues(alpha: 51)),
-                            ),
-                            child: Icon(Icons.person, color: scheme.primary),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Row(
                               children: [
-                                Text(
-                                  _player?.displayName ?? 'Not signed in',
-                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                        fontWeight: FontWeight.w800,
-                                      ),
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  alignment: Alignment.center,
+                                  child: const TrainerSilhouetteAvatar(size: 56),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _player == null
-                                      ? 'Please login or register.'
-                                      : 'Username: ${_player!.username} • Player ID: ${_player!.id}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodyMedium
-                                      ?.copyWith(color: scheme.onSurfaceVariant),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        _player?.displayName ?? 'Not signed in',
+                                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _player == null
+                                            ? 'Please login or register.'
+                                            : 'Username: ${_player!.username} • Player ID: ${_player!.id}',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium
+                                            ?.copyWith(color: scheme.onSurfaceVariant),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
                           ),
+                        ),
+                        const SizedBox(height: 16),
+                        if (_player != null)
+                          Card(
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: [
+                                  TextField(
+                                    controller: _nameController,
+                                    textInputAction: TextInputAction.next,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Name',
+                                      prefixIcon: Icon(Icons.badge_outlined),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _usernameController,
+                                    textInputAction: TextInputAction.next,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Username',
+                                      prefixIcon: Icon(Icons.person_outline),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  TextField(
+                                    controller: _passwordController,
+                                    obscureText: _obscure,
+                                    decoration: InputDecoration(
+                                      labelText: 'New password (optional)',
+                                      prefixIcon: const Icon(Icons.lock_outline),
+                                      suffixIcon: IconButton(
+                                        tooltip: _obscure ? 'Show password' : 'Hide password',
+                                        onPressed: () => setState(() => _obscure = !_obscure),
+                                        icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _saving ? null : _saveProfile,
+                                      icon: const Icon(Icons.save_outlined),
+                                      label: _saving
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            )
+                                          : const Text('Save profile'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            onPressed: _player == null ? null : _logout,
+                            style: ElevatedButton.styleFrom(backgroundColor: scheme.error),
+                            icon: const Icon(Icons.logout_rounded),
+                            label: const Text('Logout'),
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (_player != null)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            TextField(
-                              controller: _nameController,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'Name',
-                                prefixIcon: Icon(Icons.badge_outlined),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _usernameController,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'Username',
-                                prefixIcon: Icon(Icons.person_outline),
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: _passwordController,
-                              obscureText: _obscure,
-                              decoration: InputDecoration(
-                                labelText: 'New password (optional)',
-                                prefixIcon: const Icon(Icons.lock_outline),
-                                suffixIcon: IconButton(
-                                  tooltip: _obscure ? 'Show password' : 'Hide password',
-                                  onPressed: () => setState(() => _obscure = !_obscure),
-                                  icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton.icon(
-                                onPressed: _saving ? null : _saveProfile,
-                                icon: const Icon(Icons.save_outlined),
-                                label: _saving
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Text('Save profile'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    onPressed: _player == null ? null : _logout,
-                    style: ElevatedButton.styleFrom(backgroundColor: scheme.error),
-                    icon: const Icon(Icons.logout_rounded),
-                    label: const Text('Logout'),
-                  ),
-                ],
+                  );
+                },
               ),
             ),
     );

@@ -12,6 +12,7 @@ import '../screens/map_screen.dart';
 import '../screens/players_screen.dart';
 import '../screens/server_control_screen.dart';
 import '../services/player_session.dart';
+import '../services/theme_controller.dart';
 
 class AppDrawer extends StatelessWidget {
   final int? playerId;
@@ -198,6 +199,55 @@ class _SidebarPanel extends StatelessWidget {
                 return _SidebarItem(icon: e.icon, label: e.label, onTap: e.onTap);
               },
             ),
+          ),
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: AppThemeController.instance.mode,
+            builder: (context, mode, _) {
+              final isDark = mode == ThemeMode.dark;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: AppThemeController.instance.toggle,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: scheme.surfaceContainerHighest.withValues(alpha: 26),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                              size: 18,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              isDark ? 'Dark Mode' : 'Light Mode',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                          Switch.adaptive(
+                            value: isDark,
+                            onChanged: (_) => AppThemeController.instance.toggle(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),

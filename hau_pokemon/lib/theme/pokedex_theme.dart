@@ -6,6 +6,9 @@ class PokedexTheme {
   static const Color background = Color(0xFF0B0F14);
   static const Color surface = Color(0xFF101826);
   static const Color surfaceAlt = Color(0xFF0F1724);
+  static const Color backgroundLight = Color(0xFFF6FFF9);
+  static const Color surfaceLight = Color(0xFFFFFFFF);
+  static const Color surfaceAltLight = Color(0xFFF3FFF7);
 
   static const LinearGradient backgroundGradient = LinearGradient(
     begin: Alignment.topCenter,
@@ -15,6 +18,22 @@ class PokedexTheme {
       background,
     ],
   );
+
+  static const LinearGradient backgroundGradientLight = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [
+      Color(0xFFE8FFF1),
+      backgroundLight,
+    ],
+  );
+
+  static TextTheme _baseTextTheme(TextTheme base, Color color) {
+    return GoogleFonts.outfitTextTheme(base).apply(
+      bodyColor: color,
+      displayColor: color,
+    );
+  }
 
   static ThemeData dark() {
     final base = ThemeData.dark(useMaterial3: true);
@@ -26,10 +45,7 @@ class PokedexTheme {
       surface: surface,
     );
 
-    final textTheme = GoogleFonts.dmSansTextTheme(base.textTheme).apply(
-      bodyColor: scheme.onSurface,
-      displayColor: scheme.onSurface,
-    );
+    final textTheme = _baseTextTheme(base.textTheme, scheme.onSurface);
 
     return base.copyWith(
       colorScheme: scheme,
@@ -119,6 +135,112 @@ class PokedexTheme {
       ),
       dividerTheme: DividerThemeData(
         color: scheme.outline.withValues(alpha: 26),
+        thickness: 1,
+        space: 1,
+      ),
+    );
+  }
+
+  static ThemeData light() {
+    final base = ThemeData.light(useMaterial3: true);
+
+    final scheme = ColorScheme.fromSeed(
+      seedColor: _seed,
+      brightness: Brightness.light,
+    ).copyWith(
+      surface: surfaceLight,
+    );
+
+    final textTheme = _baseTextTheme(base.textTheme, scheme.onSurface);
+
+    return base.copyWith(
+      colorScheme: scheme,
+      scaffoldBackgroundColor: backgroundLight,
+      textTheme: textTheme,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: <TargetPlatform, PageTransitionsBuilder>{
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: Colors.transparent,
+        foregroundColor: scheme.onSurface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        titleTextStyle: textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.2,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: surfaceAltLight,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: scheme.outline.withValues(alpha: 36)),
+        ),
+      ),
+      listTileTheme: ListTileThemeData(
+        iconColor: scheme.onSurfaceVariant,
+        textColor: scheme.onSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: surfaceLight,
+        contentTextStyle: textTheme.bodyMedium,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: surfaceLight,
+        labelStyle: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+        hintStyle: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: scheme.outline.withValues(alpha: 64)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: scheme.outline.withValues(alpha: 64)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: scheme.primary, width: 1.2),
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: scheme.primary,
+          foregroundColor: scheme.onPrimary,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: scheme.onSurface,
+          side: BorderSide(color: scheme.outline.withValues(alpha: 90)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+          textStyle: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surfaceAltLight,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        titleTextStyle: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        contentTextStyle: textTheme.bodyMedium,
+      ),
+      dividerTheme: DividerThemeData(
+        color: scheme.outline.withValues(alpha: 36),
         thickness: 1,
         space: 1,
       ),

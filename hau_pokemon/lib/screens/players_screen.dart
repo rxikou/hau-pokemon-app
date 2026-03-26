@@ -126,22 +126,11 @@ class _PlayersScreenState extends State<PlayersScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Card(
                         child: ListTile(
-                          leading: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(14),
-                              color: scheme.primary.withValues(alpha: 18),
-                              border: Border.all(color: scheme.primary.withValues(alpha: 51)),
-                            ),
-                            child: Center(
-                              child: Text(
-                                p.username.isNotEmpty ? p.username[0].toUpperCase() : '?',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: scheme.primary,
-                                    ),
-                              ),
+                          leading: CircleAvatar(
+                            backgroundColor: scheme.surfaceContainerHighest,
+                            child: Icon(
+                              Icons.person_rounded,
+                              color: scheme.onSurfaceVariant,
                             ),
                           ),
                           title: Text(

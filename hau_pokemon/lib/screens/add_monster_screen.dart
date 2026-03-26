@@ -85,11 +85,27 @@ class _AddMonsterScreenState extends State<AddMonsterScreen> {
     }
   }
 
-  // 2. Handle Map Taps to drop a pin
-  void _onMapTapped(LatLng location) {
+  Future<void> _openExpandedMapPicker() async {
+    if (_selectedLocation == null) return;
+
+    final selected = await Navigator.of(context).push<LatLng>(
+      MaterialPageRoute(
+        builder: (_) => _ExpandedMapPickerScreen(
+          initialLocation: _selectedLocation!,
+          radius: _currentRadius,
+        ),
+      ),
+    );
+
+    if (selected == null || !mounted) return;
+
     setState(() {
-      _selectedLocation = location;
+      _selectedLocation = selected;
     });
+
+    _mapController?.animateCamera(
+      CameraUpdate.newLatLngZoom(selected, 16),
+    );
   }
 
   // 3. Image Picker Logic
@@ -215,27 +231,60 @@ class _AddMonsterScreenState extends State<AddMonsterScreen> {
             const SizedBox(height: 20),
 
             // Interactive Map
-            Container(
-              height: 250,
-              decoration: BoxDecoration(
-                border: Border.all(color: scheme.outline.withValues(alpha: 51)),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: _selectedLocation == null
-                    ? const Center(child: CircularProgressIndicator())
-                    : GoogleMap(
-                        initialCameraPosition:
-                            CameraPosition(target: _selectedLocation!, zoom: 16),
-                        onMapCreated: (controller) => _mapController = controller,
-                        onTap: _onMapTapped,
-                        markers: markers,
-                        circles: circles,
-                        myLocationEnabled: true,
-                        myLocationButtonEnabled: false,
-                        zoomControlsEnabled: false,
+            GestureDetector(
+              onTap: _openExpandedMapPicker,
+              child: Container(
+                height: 250,
+                decoration: BoxDecoration(
+                  border: Border.all(color: scheme.outline.withValues(alpha: 51)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
+                    children: [
+                      Positioned.fill(
+                        child: _selectedLocation == null
+                            ? const Center(child: CircularProgressIndicator())
+                            : IgnorePointer(
+                                child: GoogleMap(
+                                  initialCameraPosition:
+                                      CameraPosition(target: _selectedLocation!, zoom: 16),
+                                  onMapCreated: (controller) => _mapController = controller,
+                                  markers: markers,
+                                  circles: circles,
+                                  myLocationEnabled: true,
+                                  myLocationButtonEnabled: false,
+                                  zoomControlsEnabled: false,
+                                ),
+                              ),
                       ),
+                      Positioned(
+                        top: 10,
+                        right: 10,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: scheme.surface.withValues(alpha: 220),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: scheme.outline.withValues(alpha: 64)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.open_in_full_rounded, size: 16, color: scheme.onSurface),
+                              const SizedBox(width: 6),
+                              const Text(
+                                'Expand map',
+                                style: TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
 
@@ -245,7 +294,7 @@ class _AddMonsterScreenState extends State<AddMonsterScreen> {
               child: Column(
                 children: [
                   const Text(
-                    'Tap on the map to set the monster spawn point',
+                    'Tap map preview to open full-screen picker',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
@@ -328,6 +377,111 @@ class _AddMonsterScreenState extends State<AddMonsterScreen> {
       onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
+      ),
+    );
+  }
+}
+
+class _ExpandedMapPickerScreen extends StatefulWidget {
+  final LatLng initialLocation;
+  final double radius;
+
+  const _ExpandedMapPickerScreen({
+    required this.initialLocation,
+    required this.radius,
+  });
+
+  @override
+  State<_ExpandedMapPickerScreen> createState() => _ExpandedMapPickerScreenState();
+}
+
+class _ExpandedMapPickerScreenState extends State<_ExpandedMapPickerScreen> {
+  GoogleMapController? _controller;
+  late LatLng _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.initialLocation;
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Set Spawn Location'),
+        actions: [
+          IconButton(
+            tooltip: 'Use this location',
+            icon: const Icon(Icons.check_rounded),
+            onPressed: () => Navigator.of(context).pop(_selected),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          GoogleMap(
+            initialCameraPosition: CameraPosition(target: _selected, zoom: 16),
+            onMapCreated: (c) => _controller = c,
+            myLocationEnabled: true,
+            myLocationButtonEnabled: true,
+            zoomControlsEnabled: true,
+            markers: {
+              Marker(
+                markerId: const MarkerId('spawn_point_expanded'),
+                position: _selected,
+              ),
+            },
+            circles: {
+              Circle(
+                circleId: const CircleId('spawn_radius_expanded'),
+                center: _selected,
+                radius: widget.radius,
+                fillColor: scheme.primary.withValues(alpha: 0.25),
+                strokeColor: scheme.primary.withValues(alpha: 0.65),
+                strokeWidth: 1,
+              ),
+            },
+            onTap: (location) => setState(() => _selected = location),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 16,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: scheme.surface.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: scheme.outline.withValues(alpha: 0.35)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${_selected.latitude.toStringAsFixed(6)}, ${_selected.longitude.toStringAsFixed(6)}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.of(context).pop(_selected),
+                    icon: const Icon(Icons.place_rounded),
+                    label: const Text('Set Here'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

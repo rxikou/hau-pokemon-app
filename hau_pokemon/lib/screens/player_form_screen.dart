@@ -77,11 +77,15 @@ class _PlayerFormScreenState extends State<PlayerFormScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(_isEdit ? 'Edit Player' : 'Add Player')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -137,16 +141,17 @@ class _PlayerFormScreenState extends State<PlayerFormScreen> {
                       : Text(_isEdit ? 'Save changes' : 'Create player'),
                 ),
               ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _loading ? null : () => Navigator.of(context).pop(),
-                  style: OutlinedButton.styleFrom(foregroundColor: scheme.onSurface),
-                  child: const Text('Cancel'),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton(
+                    onPressed: _loading ? null : () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(foregroundColor: scheme.onSurface),
+                    child: const Text('Cancel'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

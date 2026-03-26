@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/caught_monster.dart';
 import '../services/api_service.dart';
 import '../widgets/app_drawer.dart';
 
@@ -12,6 +13,88 @@ class LeaderboardScreen extends StatefulWidget {
 class LeaderboardScreenState extends State<LeaderboardScreen> {
   final ApiService _apiService = ApiService();
   late Future<List<dynamic>> _leaderboardFuture;
+
+  int? _parsePlayerId(Map<String, dynamic> hunter) {
+    final raw = hunter['player_id'] ?? hunter['id'] ?? hunter['user_id'];
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return int.tryParse(raw?.toString() ?? '');
+  }
+
+  Future<void> _showHunterCatches({
+    required int playerId,
+    required String hunterName,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: Text('$hunterName\'s Caught Monsters'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: FutureBuilder<List<CaughtMonster>>(
+              future: _apiService.getPlayerInventory(playerId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: CircularProgressIndicator(color: scheme.primary),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Text(
+                    'Failed to load catches.\n${snapshot.error}',
+                    textAlign: TextAlign.center,
+                  );
+                }
+
+                final catches = snapshot.data ?? const <CaughtMonster>[];
+                if (catches.isEmpty) {
+                  return const Text(
+                    'No catches found for this hunter yet.',
+                    textAlign: TextAlign.center,
+                  );
+                }
+
+                return ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 360),
+                  child: SizedBox(
+                    width: 360,
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: catches.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final m = catches[index];
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: scheme.primary.withValues(alpha: 30),
+                            child: Icon(Icons.catching_pokemon, color: scheme.primary),
+                          ),
+                          title: Text(m.name),
+                          subtitle: Text(m.type),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -80,7 +163,11 @@ class LeaderboardScreenState extends State<LeaderboardScreen> {
             padding: const EdgeInsets.all(16),
             itemCount: hunters.length,
             itemBuilder: (context, index) {
-              final hunter = hunters[index];
+              final hunter = hunters[index] is Map
+                  ? Map<String, dynamic>.from(hunters[index] as Map)
+                  : <String, dynamic>{};
+              final playerName = (hunter['player_name'] ?? 'Unknown Hunter').toString();
+              final playerId = _parsePlayerId(hunter);
               
               // Assign Medal Colors for Top 3
               Color medalColor = Colors.grey[300]!;
@@ -95,6 +182,12 @@ class LeaderboardScreenState extends State<LeaderboardScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  onTap: playerId == null
+                      ? null
+                      : () => _showHunterCatches(
+                            playerId: playerId,
+                            hunterName: playerName,
+                          ),
                   leading: CircleAvatar(
                     backgroundColor: medalColor,
                     radius: 24,
@@ -104,15 +197,22 @@ class LeaderboardScreenState extends State<LeaderboardScreen> {
                     ),
                   ),
                   title: Text(
-                    hunter['player_name'] ?? 'Unknown Hunter', 
+                    playerName,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)
+                  ),
+                  subtitle: Text(
+                    playerId == null ? 'Details unavailable' : 'Tap to view caught monsters',
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 11,
+                    ),
                   ),
                   trailing: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '${hunter['total_catches']}', 
+                        '${hunter['total_catches'] ?? 0}', 
                         style: TextStyle(color: scheme.primary, fontSize: 22, fontWeight: FontWeight.bold)
                       ),
                       const Text('Catches', style: TextStyle(color: Colors.grey, fontSize: 12)),

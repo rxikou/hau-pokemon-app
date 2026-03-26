@@ -95,14 +95,10 @@ class _EditMonstersListScreenState extends State<EditMonstersListScreen> {
                         ),
                         leading: CircleAvatar(
                           backgroundColor: scheme.surfaceContainerHighest,
-                          backgroundImage:
-                              const AssetImage('assets/placeholder_monster.png'),
-                          child: monster.name.isNotEmpty
-                              ? Text(
-                                  monster.name[0],
-                                  style: TextStyle(color: scheme.onSurfaceVariant),
-                                )
-                              : null,
+                          child: Icon(
+                            Icons.catching_pokemon,
+                            color: scheme.primary,
+                          ),
                         ),
                         title: Text(
                           monster.name,
