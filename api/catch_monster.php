@@ -179,6 +179,26 @@ if ($location_columns_result) {
                 $loc_stmt->close();
             }
         }
+
+        // Final fallback: if we still don't have a location_id, use the first
+        // available location row to satisfy schemas where location_id is required.
+        if ($location_id === null) {
+            $select_name = $location_name_col !== null
+                ? "`$location_name_col` AS location_name"
+                : "CAST(`$location_id_col` AS CHAR) AS location_name";
+            $sql_any_location = "SELECT `$location_id_col` AS location_id, $select_name FROM locationstbl ORDER BY `$location_id_col` ASC LIMIT 1";
+            $loc_stmt = $conn->prepare($sql_any_location);
+            if ($loc_stmt) {
+                $loc_stmt->execute();
+                $loc_res = $loc_stmt->get_result();
+                if ($loc_res && $loc_res->num_rows > 0) {
+                    $loc_row = $loc_res->fetch_assoc();
+                    $location_id = intval($loc_row['location_id']);
+                    $location_name = $loc_row['location_name'] ?? $location_name;
+                }
+                $loc_stmt->close();
+            }
+        }
     }
 }
 

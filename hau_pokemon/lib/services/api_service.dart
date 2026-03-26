@@ -496,8 +496,20 @@ class ApiService {
     int? monsterId,
     int? locationId,
   }) async {
-    final candidates = <String>['catch_monster.php', 'catch', 'catch.php'];
+    final candidates = <String>[
+      'catch_monster.php',
+      'catch_monster',
+      'catch.php',
+      'catch',
+      // Explicit variants for setups where backendApiUrl is root.
+      'api/catch_monster.php',
+      'api/catch_monster',
+      'api/catch.php',
+      'api/catch',
+    ];
     final tried = <String>[];
+    final attempts = <String>[];
+    final attemptedUrls = <String>{};
     String? lastConnectivityError;
 
     // Use form-encoded body because PHP endpoints read from $_POST.
@@ -514,6 +526,9 @@ class ApiService {
     for (final baseUrl in _candidateBaseUrls()) {
       for (final path in candidates) {
         final url = _endpointWithBase(baseUrl, path);
+        if (!attemptedUrls.add(url.toString())) {
+          continue;
+        }
         tried.add(url.toString());
         try {
           final response = await http
@@ -530,35 +545,54 @@ class ApiService {
           if (response.statusCode == 200) {
             final decoded = _tryDecodeJson(response.body);
             if (decoded is Map) {
+              final isSuccess = decoded['success'];
+              if (isSuccess == false) {
+                attempts.add('${url.toString()} -> 200 (success:false)');
+              } else {
+                attempts.add('${url.toString()} -> 200 (ok)');
+              }
               return Map<String, dynamic>.from(decoded);
             }
+            attempts.add('${url.toString()} -> 200 (non-JSON)');
             return {
               'success': false,
-              'message': 'Server returned non-JSON response. URL: ${url.toString()}',
+              'message': 'Server returned non-JSON response. URL: ${url.toString()}. Attempts: ${attempts.join(' | ')}',
             };
           }
 
           if (_isMissingRouteStatus(response.statusCode)) {
+            attempts.add('${url.toString()} -> ${response.statusCode}');
             continue;
           }
 
+          attempts.add('${url.toString()} -> ${response.statusCode}');
           final decoded = _tryDecodeJson(response.body);
+          final raw = response.body.trim();
+          final bodySnippet = raw.isEmpty
+              ? ''
+              : (raw.length <= 220 ? raw : '${raw.substring(0, 220)}...');
           final msg = _extractMessage(decoded) ??
-              'Server error. Status: ${response.statusCode}. URL: ${url.toString()}';
-          return {'success': false, 'message': msg};
+              'Server error. Status: ${response.statusCode}. URL: ${url.toString()}${bodySnippet.isEmpty ? '' : ' Body: $bodySnippet'}';
+          return {
+            'success': false,
+            'message': '$msg. Attempts: ${attempts.join(' | ')}',
+          };
         } on TimeoutException {
           lastConnectivityError = 'Connection timeout. Is Tailscale ON?';
+          attempts.add('${url.toString()} -> timeout');
           // try next candidate
           continue;
         } on SocketException {
           lastConnectivityError = 'Connection error. Is Tailscale ON?';
+          attempts.add('${url.toString()} -> socket error');
           // try next candidate
           continue;
         } catch (e) {
           developer.log('API Error (catchMonster): $e', name: 'ApiService');
+          attempts.add('${url.toString()} -> unexpected error');
           return {
             'success': false,
-            'message': 'API error while catching monster: $e',
+            'message': 'API error while catching monster: $e. Attempts: ${attempts.join(' | ')}',
           };
         }
       }
@@ -566,7 +600,7 @@ class ApiService {
 
     return {
       'success': false,
-      'message': '${lastConnectivityError ?? 'Catch endpoint not reachable.'} Tried: ${tried.join(' | ')}',
+      'message': '${lastConnectivityError ?? 'Catch endpoint not reachable.'} Attempts: ${attempts.isNotEmpty ? attempts.join(' | ') : tried.join(' | ')}',
     };
   }
 
