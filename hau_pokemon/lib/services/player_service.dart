@@ -49,6 +49,16 @@ class PlayerService {
     return null;
   }
 
+  static dynamic _tryDecodeJson(String body) {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      return json.decode(trimmed);
+    } catch (_) {
+      return null;
+    }
+  }
+
   bool _isConnectivityFallbackMessage(String message) {
     return message.contains('endpoint not found') ||
         message.contains('connection error') ||
@@ -119,7 +129,7 @@ class PlayerService {
   }
 
   Future<void> _upsertLocalPlayer(Player player) async {
-    final players = await getPlayers();
+    final players = await _getLocalPlayers();
     // Keep a single local record per user identity to avoid stale duplicates
     // causing fallback login to compare against old password hashes.
     final next = players
@@ -143,7 +153,7 @@ class PlayerService {
     return sha256.convert(bytes).toString();
   }
 
-  Future<List<Player>> getPlayers() async {
+  Future<List<Player>> _getLocalPlayers() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_playersKey);
     if (raw == null || raw.isEmpty) return [];
@@ -155,6 +165,120 @@ class PlayerService {
         .whereType<Map>()
         .map((e) => Player.fromJson(e.cast<String, dynamic>()))
         .toList();
+  }
+
+  Future<List<Player>> _fetchRemotePlayers({
+    required List<Player> localPlayers,
+  }) async {
+    final tried = <String>[];
+    String? connectivityError;
+
+    final localById = <int, Player>{for (final p in localPlayers) p.id: p};
+    final localByUsername = <String, Player>{
+      for (final p in localPlayers) p.username.toLowerCase(): p,
+    };
+
+    for (final baseUrl in _candidateBaseUrls()) {
+      for (final path in const ['get_players.php', 'get_players']) {
+        final url = _endpointWithBase(baseUrl, path);
+        tried.add(url.toString());
+        try {
+          final response = await http.get(url).timeout(_timeout);
+
+          if (response.statusCode == 404 || response.statusCode == 405) {
+            continue;
+          }
+
+          if (response.statusCode != 200) {
+            final decoded = _tryDecodeJson(response.body);
+            throw Exception(
+              _extractMessage(decoded) ?? 'Failed to load players. Status: ${response.statusCode}',
+            );
+          }
+
+          final decoded = _tryDecodeJson(response.body);
+          dynamic listLike;
+          if (decoded is Map) {
+            if (decoded['success'] == false) {
+              throw Exception(_extractMessage(decoded) ?? 'Failed to load players.');
+            }
+            listLike = decoded['data'] ?? decoded['players'] ?? decoded['items'];
+          } else {
+            listLike = decoded;
+          }
+
+          if (listLike is! List) {
+            throw Exception('Invalid players response format.');
+          }
+
+          final remotePlayers = <Player>[];
+          for (final item in listLike.whereType<Map>()) {
+            final map = item.cast<String, dynamic>();
+            final id = _parseInt(map['id'] ?? map['player_id']);
+            if (id <= 0) continue;
+
+            final rawUsername =
+                (map['username'] ?? map['player_name'] ?? map['name'] ?? '').toString().trim();
+            if (rawUsername.isEmpty) continue;
+
+            final rawName =
+                (map['name'] ?? map['player_name'] ?? map['display_name'] ?? rawUsername)
+                    .toString()
+                    .trim();
+
+            final cached = localById[id] ?? localByUsername[rawUsername.toLowerCase()];
+            remotePlayers.add(
+              Player(
+                id: id,
+                name: rawName,
+                username: rawUsername,
+                passwordHash: cached?.passwordHash ?? '',
+              ),
+            );
+          }
+
+          // Keep a stable order for list rendering and deterministic caching.
+          remotePlayers.sort((a, b) {
+            final byName = a.displayName.toLowerCase().compareTo(b.displayName.toLowerCase());
+            if (byName != 0) return byName;
+            return a.id.compareTo(b.id);
+          });
+
+          return remotePlayers;
+        } on SocketException {
+          connectivityError = 'Connection error. Is Tailscale ON?';
+          continue;
+        } on TimeoutException {
+          connectivityError = 'Connection timeout. Is Tailscale ON?';
+          continue;
+        } on http.ClientException {
+          connectivityError = 'Connection error. Is Tailscale ON?';
+          continue;
+        }
+      }
+    }
+
+    throw Exception(
+      '${connectivityError ?? 'Players endpoint not found.'} Tried: ${tried.join(' | ')}',
+    );
+  }
+
+  Future<List<Player>> getPlayers() async {
+    final localPlayers = await _getLocalPlayers();
+
+    try {
+      final remotePlayers = await _fetchRemotePlayers(localPlayers: localPlayers);
+      await _savePlayers(remotePlayers);
+      return remotePlayers;
+    } catch (e) {
+      final message = e.toString().replaceFirst('Exception: ', '').toLowerCase();
+      if (_isConnectivityFallbackMessage(message)) {
+        return localPlayers;
+      }
+
+      // Keep player-related screens usable even if the API returns transient errors.
+      return localPlayers;
+    }
   }
 
   Future<void> _savePlayers(List<Player> players) async {
@@ -221,7 +345,7 @@ class PlayerService {
       if (!canFallback) rethrow;
     }
 
-    final players = await getPlayers();
+    final players = await _getLocalPlayers();
     final exists = players.any((p) => p.username.toLowerCase() == normalized.toLowerCase());
     if (exists) {
       throw Exception('Username already exists.');
@@ -285,7 +409,7 @@ class PlayerService {
       if (!canFallback) rethrow;
     }
 
-    final players = await getPlayers();
+    final players = await _getLocalPlayers();
 
     final hash = hashPassword(password);
     final match = players.where((p) => p.username.toLowerCase() == normalized.toLowerCase()).toList();
@@ -322,7 +446,7 @@ class PlayerService {
     await prefs.setInt(_currentPlayerIdKey, id);
     PlayerSession.currentPlayerId = id;
 
-    final players = await getPlayers();
+    final players = await _getLocalPlayers();
     final current = players.where((p) => p.id == id).cast<Player?>().firstWhere(
           (p) => p != null,
           orElse: () => null,
@@ -353,7 +477,7 @@ class PlayerService {
       throw Exception('Name is required.');
     }
 
-    final players = await getPlayers();
+    final players = await _getLocalPlayers();
     final existing = players.where((p) => p.id == id).cast<Player?>().firstWhere(
           (p) => p != null,
           orElse: () => null,
@@ -427,7 +551,23 @@ class PlayerService {
   }
 
   Future<void> deletePlayer(int id) async {
-    final players = await getPlayers();
+    final players = await _getLocalPlayers();
+
+    try {
+      final data = await _postFormToCandidates(
+        paths: const ['delete_player.php', 'delete_player'],
+        body: {'player_id': id.toString()},
+      );
+
+      if (data['success'] == false) {
+        throw Exception(_extractMessage(data) ?? 'Failed to delete account.');
+      }
+    } catch (e) {
+      final message = e.toString().replaceFirst('Exception: ', '').toLowerCase();
+      final canFallback = _isConnectivityFallbackMessage(message);
+      if (!canFallback) rethrow;
+    }
+
     final next = players.where((p) => p.id != id).toList();
     await _savePlayers(next);
 

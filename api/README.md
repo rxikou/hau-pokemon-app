@@ -8,6 +8,8 @@ This folder is tracked in git so the team has one shared place for PHP API refer
 - `update_monster.php`
 - `delete_monster.php`
 - `update_player.php`
+- `get_players.php`
+- `delete_player.php`
 - any shared DB config examples (without real secrets)
 
 ## Notes
